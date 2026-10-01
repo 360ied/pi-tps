@@ -71,12 +71,13 @@ Then `/reload` in pi.
 ## Output format
 
 ```
-TPS 42.5 tok/s · TTFT 1.2s · 29.7s · in 567 · out 1.2K · stall 4.3s×1 · $3.60/M
+TPS 42.5 tok/s (eff 18.2) · TTFT 1.2s · 29.7s · in 567 · out 1.2K · stall 4.3s×1 · $3.60/M
 ```
 
 | Field   | Description                                                                              |
 | ------- | ---------------------------------------------------------------------------------------- |
 | `TPS`   | Tokens per second (generation speed, excludes TTFT & stalls)                             |
+| `(eff)` | Effective TPS: `out / total wall-clock`, includes TTFT & stalls — how fast it felt       |
 | `TTFT`  | Time to first token (seconds, 1 decimal)                                                 |
 | `s`     | Total wall-clock time from request to completion                                         |
 | `in`    | Input tokens (human-readable: K/M/B)                                                     |
@@ -87,8 +88,10 @@ TPS 42.5 tok/s · TTFT 1.2s · 29.7s · in 567 · out 1.2K · stall 4.3s×1 · $
 When TPS can't be determined (burst delivery, too few chunks), the field shows `—`:
 
 ```
-TPS — · TTFT 0.8s · 1.3s · in 291 · out 46 · $2.59/M
+TPS — (eff 35.4) · TTFT 0.8s · 1.3s · in 291 · out 46 · $2.59/M
 ```
+
+`eff` is always shown (no chunk-count gate), so burst turns that read `TPS —` still get a perceived-speed number.
 
 ### $/M-tokens rate
 

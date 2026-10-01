@@ -91,6 +91,7 @@ interface TurnTelemetry {
     messageCount: number; // assistant messages in this turn
   };
   tps: number | null; // output / (streamMs / 1000), null when burst/degenerate
+  tpsEff: number | null; // output / (totalMs / 1000), perceived speed incl. TTFT & stalls
   isPrimaryBranch: boolean; // TPS came from primary-branch (reliable) measurement
   cost: {
     input: number;
@@ -287,7 +288,10 @@ export function formatDuration(totalSeconds: number): string {
  */
 function composeDisplayString(t: TurnTelemetry): string {
   const parts: string[] = [];
-  parts.push(t.tps !== null ? `TPS ${t.tps.toFixed(1)} tok/s` : 'TPS —');
+  // tpsEff is absent on telemetry persisted by older versions — omit it there.
+  const eff = (t as { tpsEff?: number | null }).tpsEff ?? null;
+  const effSuffix = eff !== null ? ` (eff ${eff.toFixed(1)})` : '';
+  parts.push(t.tps !== null ? `TPS ${t.tps.toFixed(1)} tok/s${effSuffix}` : 'TPS —' + effSuffix);
   if (t.timing.ttftMs !== null) {
     parts.push(`TTFT ${formatDuration(t.timing.ttftMs / 1000)}`);
   }
@@ -484,6 +488,19 @@ function buildTelemetry(
     isPrimaryBranch = false;
   }
 
+  // ── Effective TPS ─────────────────────────────────────────────────────
+  // Perceived speed: output / (wall-clock turn time / 1000). Includes
+  // TTFT, stalls, and tool gaps — answers "how fast did it feel?" while
+  // `tps` answers "how fast did the model generate?". Always computable
+  // when telemetry exists (no chunk-count gate), so burst turns that show
+  // `TPS —` still get a meaningful eff number. Same plausibility gate.
+  let tpsEff: number | null = null;
+  if (totalMs > 0) {
+    const rawEff = output / (totalMs / 1000);
+    tpsEff = Math.round(rawEff * 10) / 10;
+    if (tpsEff > MAX_PLAUSIBLE_TPS) tpsEff = null;
+  }
+
   // Single blended $/M-tokens rate for the banner. Cost source: Neuralwatt's
   // billed cost when present (energy-based, what the user actually pays),
   // otherwise the list-price compute cost from message.usage.cost. Never both
@@ -508,6 +525,7 @@ function buildTelemetry(
       messageCount: timing.messageCount,
     },
     tps,
+    tpsEff,
     isPrimaryBranch,
     cost:
       listPriceCost !== null
